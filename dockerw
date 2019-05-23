@@ -40,7 +40,7 @@ digest() {
 push_if_changed() {
   local image="${1}"
   local tag="${2}"
-  local dockerfile="${3}"
+  local dockerfile="${3:-Dockerfile}"
 
   local currentDigest="$(digest "${image}" "${tag}")"
   local cachedDigest="$(cat ${dockerfile}.digest || echo "<no_digest>")"
@@ -48,14 +48,14 @@ push_if_changed() {
     echo "INFO: pushing '${image}:${tag}' as it has been updated since the last time is has been pulled."
     push "${image}" "${tag}"
   else
-    echo "INFO: No need to push '${image}:${tag}', it has same content as the last time is has been pulled."
+    echo "INFO: No need to push '${image}:${tag}', it has same content since the last time is has been pulled."
   fi
 }
 
 build() {
   local image="${1}"
   local tag="${2}"
-  local dockerfile="${3}"
+  local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
 
   if [[ $# -gt 4 ]]; then
@@ -64,21 +64,39 @@ build() {
     shift $#
   fi
 
-  docker pull "${image}:${tag}" || :
+  docker pull "${image}:${tag}" && digest "${image}" "${tag}" > "${dockerfile}.digest" || :
   
-  digest "${image}" "${tag}" > "${dockerfile}.digest" || :
+  local parent_image=$(grep -E " *FROM" "${dockerfile}" | sed -E 's/.*FROM (.*)/\1/')
+  
+  docker pull ${parent_image}
 
-  if ${SCRIPT_FOLDER}/check-for-update.sh "${image}:${tag}"; then
-    docker build --rm --pull --cache-from "${image}:${tag}" -t "${image}:${tag}" "$@" -f "${dockerfile}" "${context}"
+  local check_for_update_logs=$(mktemp)
+  local check_for_update_logs_parent=$(mktemp)
+  if ${SCRIPT_FOLDER}/check-for-update.sh "${image}:${tag}" > "${check_for_update_logs}"; then
+    # ${image}:${tag} packages are up to date, build with cache
+    echo "INFO: Building ${dockerfile} with cache from ${image}:${tag}"
+    docker build --rm --cache-from "${image}:${tag}" -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
+  elif ${SCRIPT_FOLDER}/check-for-update.sh "${parent_image}" > "${check_for_update_logs_parent}"; then
+    # ${image}:${tag} packages are outdated, but ${parent_image} packages are up to date, build with no cache
+    echo "INFO: Building ${dockerfile} with no cache"
+    docker build --rm --no-cache -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
+  elif diff "${check_for_update_logs}" "${check_for_update_logs_parent}" | grep '^<' > /dev/null; then
+    # Both ${image}:${tag} and ${parent_image} packages are outdated, some outdated packages from ${image}:${tag} are not outdated/installed in ${parent_image}, build with no cache
+    echo "INFO: Building ${dockerfile} with no cache"
+    docker build --rm --no-cache -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
   else
-    docker build --rm --pull --no-cache -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
+    # Both ${image}:${tag} and ${parent_image} packages are outdated, but all outdated packages from ${image}:${tag} come from ${parent_image}, build with cache
+    echo "INFO: Building ${dockerfile} with cache from ${image}:${tag}"
+    docker build --rm --cache-from "${image}:${tag}" -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
   fi
+
+  rm "${check_for_update_logs}" "${check_for_update_logs_parent}"
 }
 
 build_and_push() {
   local image="${1}"
   local tag="${2}"
-  local dockerfile="${3}"
+  local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
 
   if [[ $# -gt 4 ]]; then
@@ -88,7 +106,7 @@ build_and_push() {
   fi
 
   build "${image}" "${tag}" "${dockerfile}" "${context}" "$@"
-  push "${image}" "${tag}"
+  push_if_changed "${image}" "${tag}" "${dockerfile}"
 }
 
 build_all() {

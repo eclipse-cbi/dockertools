@@ -58,12 +58,12 @@ status() {
 start() {
   mkdir -p "${SCRIPT_FOLDER}/.buildkit"
   docker pull moby/buildkit:${BUILDKIT_VERSION}
-  docker run -d --privileged --rm -p ${BUILDKIT_PORT}:${BUILDKIT_PORT} moby/buildkit:${BUILDKIT_VERSION} --addr tcp://0.0.0.0:${BUILDKIT_PORT} --root "${SCRIPT_FOLDER}/.buildkit" "$@" > "${SCRIPT_FOLDER}/.buildkitd.containerid"
+  docker run -d --privileged --rm -p ${BUILDKIT_PORT}:${BUILDKIT_PORT} moby/buildkit:${BUILDKIT_VERSION} --addr tcp://0.0.0.0:${BUILDKIT_PORT} --root "${SCRIPT_FOLDER}/.buildkit" "$@"
 }
 
 stop() {
   if status; then
-    docker stop $(cat ${SCRIPT_FOLDER}/.buildkitd.containerid)
+    docker stop $(docker ps -qf "publish=${BUILDKIT_PORT}")
   fi
 }
 

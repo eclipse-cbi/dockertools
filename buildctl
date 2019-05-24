@@ -33,7 +33,7 @@ build_with_cache() {
 
   ${SCRIPT_FOLDER}/bin/buildctl build --progress=plain --frontend=dockerfile.v0 --local context="${context}" --local dockerfile="$(dirname "${dockerfile}")" --opt filename="$(basename "${dockerfile}")" --output type=docker,name=${image}:${tag} --export-cache type=inline --import-cache type=registry,ref=${image}:${tag} | docker load
 
-  ${SCRIPT_FOLDER}/buildkitd stop
+  ${SCRIPT_FOLDER}/buildkitd stop || :
 }
 
 main() {

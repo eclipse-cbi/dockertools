@@ -33,7 +33,7 @@ if [[ ! -x ${SCRIPT_FOLDER}/bin/buildctl ]]; then
   fi
   >&2 echo "INFO: Downloading buildkit (${BUILDKIT_VERSION}) binaries for platform ${platform}"
   releaseinfo=$(mktemp)
-  if [[ "${BUILDKIT_VERSION}" = "latest" ]]
+  if [[ "${BUILDKIT_VERSION}" = "latest" ]];
     curl -s https://api.github.com/repos/moby/buildkit/releases/${BUILDKIT_VERSION} > "${releaseinfo}"
   else
     curl -s https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION} > "${releaseinfo}"

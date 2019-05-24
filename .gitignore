@@ -1,0 +1,4 @@
+.buildkit.target_commitish
+.buildkitd.containerid
+bin/
+buildkit.tar.gz

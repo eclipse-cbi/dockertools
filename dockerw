@@ -74,20 +74,20 @@ build() {
   local check_for_update_logs_parent=$(mktemp)
   if ${SCRIPT_FOLDER}/check-for-update.sh "${image}:${tag}" > "${check_for_update_logs}"; then
     # ${image}:${tag} packages are up to date, build with cache
-    echo "INFO1: Building ${dockerfile} with cache from ${image}:${tag}"
-    docker build --cache-from "${parent_image}","${image}:${tag}" -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
+    echo "INFO: Building ${dockerfile} with cache from ${image}:${tag}"
+    ${SCRIPT_FOLDER}/buildctl build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}"
   elif ${SCRIPT_FOLDER}/check-for-update.sh "${parent_image}" > "${check_for_update_logs_parent}"; then
     # ${image}:${tag} packages are outdated, but ${parent_image} packages are up to date, build with no cache
-    echo "INFO2: Building ${dockerfile} with no cache"
+    echo "INFO: Building ${dockerfile} with no cache"
     docker build --no-cache -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
   elif diff "${check_for_update_logs}" "${check_for_update_logs_parent}" | grep '^<' > /dev/null; then
     # Both ${image}:${tag} and ${parent_image} packages are outdated, some outdated packages from ${image}:${tag} are not outdated/installed in ${parent_image}, build with no cache
-    echo "INFO3: Building ${dockerfile} with no cache"
+    echo "INFO: Building ${dockerfile} with no cache"
     docker build --no-cache -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
   else
     # Both ${image}:${tag} and ${parent_image} packages are outdated, but all outdated packages from ${image}:${tag} come from ${parent_image}, build with cache
-    echo "INFO4: Building ${dockerfile} with cache from ${image}:${tag}"
-    docker build --cache-from "${parent_image}","${image}:${tag}" -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
+    echo "INFO: Building ${dockerfile} with cache from ${image}:${tag}"
+    ${SCRIPT_FOLDER}/buildctl build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}"
   fi
 
   rm "${check_for_update_logs}" "${check_for_update_logs_parent}"

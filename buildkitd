@@ -1,0 +1,81 @@
+#! /usr/bin/env bash
+#*******************************************************************************
+# Copyright (c) 2018 Eclipse Foundation and others.
+# This program and the accompanying materials are made available
+# under the terms of the Eclipse Public License 2.0
+# which is available at http://www.eclipse.org/legal/epl-v20.html,
+# or the MIT License which is available at https://opensource.org/licenses/MIT.
+# SPDX-License-Identifier: EPL-2.0 OR MIT
+#*******************************************************************************
+#!/usr/bin/env bash
+
+set -o errexit
+set -o nounset
+set -o pipefail
+
+IFS=$'\n\t'
+SCRIPT_FOLDER="$(dirname $(readlink -f "${0}"))"
+
+BUILDKIT_VERSION="${BUILDKIT_VERSION:-latest}"
+BUILDKIT_PORT="${BUILDKIT_PORT:-1234}"
+
+# Need docker
+if ! command -v docker > /dev/null; then
+  >&2 echo "ERROR: this program requires 'docker'"
+  exit 1
+fi
+
+if [[ ! -x ${SCRIPT_FOLDER}/bin/buildctl ]]; then
+  if [[ $(uname) = "Darwin" ]]; then
+    platform="darwin-amd64"
+  else
+    platform="linux-amd64"
+  fi
+  >&2 echo "INFO: Downloading buildkit (${BUILDKIT_VERSION}) binaries for platform ${platform}"
+  releaseinfo=$(mktemp)
+  curl -s https://api.github.com/repos/moby/buildkit/releases/${BUILDKIT_VERSION} > "${releaseinfo}"
+  buildkit_url="$(cat ${releaseinfo} | jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url')"
+  curl -sL -o buildkit.tar.gz -o buildkit.tar.gz "${buildkit_url}"
+  tar zxf buildkit.tar.gz
+  rm "${releaseinfo}"
+fi
+
+status() {
+  if ${SCRIPT_FOLDER}/bin/buildctl du &> /dev/null; then
+    >&2 echo "INFO: buildkitd is running"
+    return 0
+  else
+    >&2 echo "INFO: buildkitd is not running"
+    return 1
+  fi
+}
+
+start() {
+  mkdir -p "${SCRIPT_FOLDER}/.buildkit"
+  docker pull moby/buildkit:${BUILDKIT_VERSION}
+  docker run -d --privileged --rm -p ${BUILDKIT_PORT}:${BUILDKIT_PORT} moby/buildkit:${BUILDKIT_VERSION} --addr tcp://0.0.0.0:${BUILDKIT_PORT} --root "${SCRIPT_FOLDER}/.buildkit" "$@" > "${SCRIPT_FOLDER}/.buildkitd.containerid"
+}
+
+stop() {
+  if status; then
+    docker stop $(cat ${SCRIPT_FOLDER}/.buildkitd.containerid)
+  fi
+}
+
+main() {
+  echo "You must enter a valid command"
+  exit 1
+}
+
+run() {
+  local args=$*
+  local f="${1:-}"
+
+  if [[ "$f" == "" ]]; then
+    main
+  else
+    $args
+  fi
+}
+
+run "$@"

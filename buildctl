@@ -19,7 +19,7 @@ SCRIPT_FOLDER="$(dirname $(readlink -f "${0}"))"
 BUILDKIT_VERSION="${BUILDKIT_VERSION:-latest}"
 BUILDKIT_PORT="${BUILDKIT_PORT:-1234}"
 
-export BUILDKIT_HOST=tcp://0.0.0.0:${BUILDKIT_PORT}
+export BUILDKIT_HOST="${BUILDKIT_HOST:-"tcp://0.0.0.0:${BUILDKIT_PORT}"}"
 
 build_with_cache() {
   local image="${1}"

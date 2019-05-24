@@ -39,6 +39,7 @@ if [[ ! -x ${SCRIPT_FOLDER}/bin/buildctl ]]; then
     curl -s https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION} > "${releaseinfo}"
   fi
   buildkit_url="$(cat ${releaseinfo} | jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url')"
+  >&2 echo "INFO: Downloading ${buildkit_url}"
   curl -sL -o buildkit.tar.gz -o buildkit.tar.gz "${buildkit_url}"
   tar zxf buildkit.tar.gz
   rm "${releaseinfo}"

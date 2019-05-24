@@ -40,8 +40,8 @@ if [[ ! -x ${SCRIPT_FOLDER}/bin/buildctl ]]; then
   fi
   buildkit_url="$(cat ${releaseinfo} | jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url')"
   >&2 echo "INFO: Downloading ${buildkit_url}"
-  curl -sL -o buildkit.tar.gz -o buildkit.tar.gz "${buildkit_url}"
-  tar zxf buildkit.tar.gz
+  curl -sL -o "${SCRIPT_FOLDER}/buildkit.tar.gz" "${buildkit_url}"
+  tar -C "${SCRIPT_FOLDER}" zxf buildkit.tar.gz
   rm "${releaseinfo}"
 fi
 

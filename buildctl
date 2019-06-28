@@ -14,12 +14,27 @@ set -o nounset
 set -o pipefail
 
 IFS=$'\n\t'
-SCRIPT_FOLDER="$(dirname $(readlink -f "${0}"))"
+SCRIPT_FOLDER="$(dirname "$(readlink -f "${0}")")"
 
-BUILDKIT_VERSION="${BUILDKIT_VERSION:-latest}"
-BUILDKIT_PORT="${BUILDKIT_PORT:-1234}"
+stop_daemon() {
+  "${SCRIPT_FOLDER}/buildkitd" stop || :
+}
 
-export BUILDKIT_HOST="${BUILDKIT_HOST:-"tcp://0.0.0.0:${BUILDKIT_PORT}"}"
+build() {
+  local image="${1}"
+  local tag="${2}"
+  local dockerfile="${3:-Dockerfile}"
+  local context="${4:-"$(dirname "${dockerfile}")"}"
+
+  "${SCRIPT_FOLDER}/bin/buildctl" build \
+    --progress=plain \
+    --frontend=dockerfile.v0 \
+    --local context="${context}" \
+    --local dockerfile="$(dirname "${dockerfile}")" \
+    --opt filename="$(basename "${dockerfile}")" \
+    --output type=docker,name="${image}:${tag}" \
+    --export-cache type=inline | docker load
+}
 
 build_with_cache() {
   local image="${1}"
@@ -27,13 +42,20 @@ build_with_cache() {
   local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
 
-  if ! ${SCRIPT_FOLDER}/buildkitd status; then
-    ${SCRIPT_FOLDER}/buildkitd start
-  fi
+  "${SCRIPT_FOLDER}/bin/buildctl" build \
+    --progress=plain \
+    --frontend=dockerfile.v0 \
+    --local context="${context}" \
+    --local dockerfile="$(dirname "${dockerfile}")" \
+    --opt filename="$(basename "${dockerfile}")" \
+    --output type=docker,name="${image}:${tag}" \
+    --export-cache type=inline \
+    --import-cache type=registry,ref="${image}:${tag}" | docker load
+}
 
-  ${SCRIPT_FOLDER}/bin/buildctl build --progress=plain --frontend=dockerfile.v0 --local context="${context}" --local dockerfile="$(dirname "${dockerfile}")" --opt filename="$(basename "${dockerfile}")" --output type=docker,name=${image}:${tag} --export-cache type=inline --import-cache type=registry,ref=${image}:${tag} | docker load
-
-  ${SCRIPT_FOLDER}/buildkitd stop || :
+prune() {
+  "${SCRIPT_FOLDER}/bin/buildctl" prune \
+    --keep-storage 10240
 }
 
 main() {
@@ -48,6 +70,13 @@ run() {
   if [[ "$f" == "" ]]; then
     main
   else
+    trap stop_daemon EXIT
+    if ! "${SCRIPT_FOLDER}/buildkitd" status 2> /dev/null; then
+      "${SCRIPT_FOLDER}/buildkitd" start
+    fi
+    BUILDKIT_HOST="$("${SCRIPT_FOLDER}/buildkitd" host)"
+    export BUILDKIT_HOST
+    prune
     $args
   fi
 }

@@ -14,7 +14,7 @@ set -o nounset
 set -o pipefail
 
 IFS=$'\n\t'
-SCRIPT_FOLDER="$(dirname $(readlink -f "${0}"))"
+SCRIPT_FOLDER="$(dirname "$(readlink -f "${0}")")"
 
 push() {
   local image="${1}"
@@ -22,10 +22,10 @@ push() {
   local retry="${3:-5}"
 
   n=0
-  until [ $n -ge ${retry} ]; do
+  until [ $n -ge "${retry}" ]; do
     docker push "${image}:${tag}" && break
     echo "Try #$n failed ($image:${tag})... sleeping for 15 seconds"
-    n=$[$n+1]
+    n=$((n+1))
     sleep 15
   done
 }
@@ -34,7 +34,7 @@ digest() {
   local image="${1}"
   local tag="${2}"
 
-  docker image list --no-trunc --format {{.ID}} "${image}${tag:+":${tag}"}"
+  docker image list --no-trunc --format "{{.ID}}" "${image}${tag:+":${tag}"}"
 }
 
 push_if_changed() {
@@ -42,8 +42,10 @@ push_if_changed() {
   local tag="${2}"
   local dockerfile="${3:-Dockerfile}"
 
-  local currentDigest="$(digest "${image}" "${tag}")"
-  local cachedDigest="$(cat ${dockerfile}.digest || echo "<no_digest>")"
+  local currentDigest
+  currentDigest="$(digest "${image}" "${tag}")"
+  local cachedDigest
+  cachedDigest="$(cat "${dockerfile}.digest" || echo "<no_digest>")"
   if [[ "${currentDigest}" != "${cachedDigest}" ]]; then
     echo "INFO: pushing '${image}:${tag}' as it has been updated since the last time is has been pulled."
     push "${image}" "${tag}"
@@ -64,33 +66,72 @@ build() {
     shift $#
   fi
 
-  docker pull "${image}:${tag}" && digest "${image}" "${tag}" > "${dockerfile}.digest" || :
-  
-  local parent_image=$(grep -E " *FROM" "${dockerfile}" | sed -E 's/.*FROM (.*)/\1/')
-  
-  docker pull ${parent_image}
+  rm -f "${dockerfile}.buildlog"
+  touch "${dockerfile}.buildlog"
 
-  local check_for_update_logs=$(mktemp)
-  local check_for_update_logs_parent=$(mktemp)
-  if ${SCRIPT_FOLDER}/check-for-update.sh "${image}:${tag}" > "${check_for_update_logs}"; then
-    # ${image}:${tag} packages are up to date, build with cache
-    echo "INFO: Building ${dockerfile} with cache from ${image}:${tag}"
-    ${SCRIPT_FOLDER}/buildctl build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}"
-  elif ${SCRIPT_FOLDER}/check-for-update.sh "${parent_image}" > "${check_for_update_logs_parent}"; then
-    # ${image}:${tag} packages are outdated, but ${parent_image} packages are up to date, build with no cache
-    echo "INFO: Building ${dockerfile} with no cache"
-    docker build --no-cache -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
-  elif diff "${check_for_update_logs}" "${check_for_update_logs_parent}" | grep '^<' > /dev/null; then
-    # Both ${image}:${tag} and ${parent_image} packages are outdated, some outdated packages from ${image}:${tag} are not outdated/installed in ${parent_image}, build with no cache
-    echo "INFO: Building ${dockerfile} with no cache"
-    docker build --no-cache -t "${image}:${tag}" -f "${dockerfile}" "$@" "${context}"
-  else
-    # Both ${image}:${tag} and ${parent_image} packages are outdated, but all outdated packages from ${image}:${tag} come from ${parent_image}, build with cache
-    echo "INFO: Building ${dockerfile} with cache from ${image}:${tag}"
-    ${SCRIPT_FOLDER}/buildctl build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}"
+  echo "INFO: Trying to pull ${image}:${tag}" | tee -a "${dockerfile}.buildlog" >&2
+  if docker pull "${image}:${tag}" &>> "${dockerfile}.buildlog"; then
+    digest "${image}" "${tag}" > "${dockerfile}.digest"
+  else 
+    echo "INFO: Cannot find ${image}:${tag} on remote repository" | tee -a "${dockerfile}.buildlog" >&2
   fi
+  
+  local parent_image
+  parent_image=$(grep -E " *FROM" "${dockerfile}" | sed -E 's/.*FROM (.*)/\1/')
+  
+  docker pull "${parent_image}" &>> "${dockerfile}.buildlog"
 
-  rm "${check_for_update_logs}" "${check_for_update_logs_parent}"
+  if ! docker image inspect "${image}:${tag}" &>> "${dockerfile}.buildlog"; then
+    echo "INFO: Cannot find ${image}:${tag} on local repository" | tee -a "${dockerfile}.buildlog" >&2
+    echo "INFO: Building ${dockerfile} fot the first time" | tee -a "${dockerfile}.buildlog" >&2
+    "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+  else
+    local check_for_update_logs
+    check_for_update_logs=$(mktemp)
+    local check_for_update_logs_parent
+    check_for_update_logs_parent=$(mktemp)
+    if "${SCRIPT_FOLDER}/check-for-update.sh" "${image}:${tag}" > "${check_for_update_logs}"; then
+      # ${image}:${tag} packages are up to date, build with cache
+      echo "INFO: Building ${dockerfile} with cache from ${image}:${tag} (all packages are up to date)" | tee -a "${dockerfile}.buildlog" >&2
+      "${SCRIPT_FOLDER}/buildctl" build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+    elif "${SCRIPT_FOLDER}/check-for-update.sh" "${parent_image}" > "${check_for_update_logs_parent}"; then
+      # ${image}:${tag} packages are outdated, but ${parent_image} packages are up to date, build with no cache
+      echo "INFO: Building ${dockerfile} with no cache (some packages are outdated)" | tee -a "${dockerfile}.buildlog" >&2
+      "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+    elif [[ $(diff "${check_for_update_logs}" "${check_for_update_logs_parent}" | grep -c '^<') -gt 0 ]]; then
+      # Both ${image}:${tag} and ${parent_image} packages are outdated, 
+      # some packages from ${image}:${tag} are not outdated/installed in ${parent_image}, build with no cache
+      echo "INFO: Building ${dockerfile} with no cache (some packages are outdated)" | tee -a "${dockerfile}.buildlog" >&2
+      
+      {
+        echo "INFO: Packages outdated in ${image}:${tag}"
+        cat "${check_for_update_logs}"
+        echo "INFO: Packages outdated in ${parent_image}"
+        cat "${check_for_update_logs_parent}"
+        echo "INFO: Diff ${image}:${tag} <-> ${parent_image}"
+        diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
+      } >> "${dockerfile}.buildlog" 
+
+      "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+    else
+      # Both ${image}:${tag} and ${parent_image} packages are outdated, 
+      # but all outdated packages from ${image}:${tag} come from ${parent_image}, build with cache
+      echo "INFO: Building ${dockerfile} with cache from ${image}:${tag} (some packages are outdated, but they are controlled by parent image exclusively)" | tee -a "${dockerfile}.buildlog" >&2
+      
+      {
+        echo "INFO: Packages outdated in ${image}:${tag}"
+        cat "${check_for_update_logs}"
+        echo "INFO: Packages outdated in ${parent_image}"
+        cat "${check_for_update_logs_parent}"
+        echo "INFO: Diff ${image}:${tag} <-> ${parent_image}"
+        diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
+      } >> "${dockerfile}.buildlog" 
+
+      "${SCRIPT_FOLDER}/buildctl" build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+    fi
+
+    rm -f "${check_for_update_logs}" "${check_for_update_logs_parent}"
+  fi
 }
 
 build_and_push() {
@@ -105,7 +146,7 @@ build_and_push() {
     shift $#
   fi
 
-  build "${image}" "${tag}" "${dockerfile}" "${context}" "$@"
+  build "${image}" "${tag}" "${dockerfile}" "${context}"
   push_if_changed "${image}" "${tag}" "${dockerfile}"
 }
 
@@ -114,8 +155,9 @@ build_all() {
   local from="${2}"
   local image="${3:-}"
   mapfile -t dockerfiles < <(find -L "${from}" -iname '*Dockerfile' | sed 's|\./||' | sort -V)
-  for dockerfile in ${dockerfiles[@]}; do
-    local build_dir=$(dirname "$dockerfile")
+  for dockerfile in "${dockerfiles[@]}"; do
+    local build_dir
+    build_dir=$(dirname "$dockerfile")
     local tag=${build_dir##*\/}
     : "${image:=$(basename "${from}")}"
 
@@ -136,8 +178,9 @@ push_all() {
   local from="${2}"
   local image="${3:-}"
   mapfile -t dockerfiles < <(find -L "${from}" -iname '*Dockerfile' | sed 's|\./||' | sort -V)
-  for dockerfile in ${dockerfiles[@]}; do
-    local build_dir=$(dirname "$dockerfile")
+  for dockerfile in "${dockerfiles[@]}"; do
+    local build_dir
+    build_dir=$(dirname "$dockerfile")
     local tag="${build_dir##*\/}"
     : "${image:=$(basename "${from}")}"
 
@@ -168,8 +211,8 @@ clean() {
 
 rmi_all() {
   local r="${1}"
-  if [[ $(docker image list ${r} | wc -l) -gt 1 ]]; then
-    docker image list ${r} | tr -s ' ' | tail -n +2 | cut -d ' ' -f 3 | sort -u | xargs docker image rm -f
+  if [[ $(docker image list "${r}" | wc -l) -gt 1 ]]; then
+    docker image list "${r}" | tr -s ' ' | tail -n +2 | cut -d ' ' -f 3 | sort -u | xargs docker image rm -f
   fi
 }
 

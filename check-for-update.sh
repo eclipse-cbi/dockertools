@@ -14,7 +14,7 @@ if [ -f /.dockerenv ]; then
     if [ -x /sbin/apk ]; then
         apk upgrade --no-cache --simulate | grep 'Upgrading' && exit 1
     elif [ -x /usr/bin/apt-get ]; then
-        apt-get update 2>&1 > /dev/null
+        apt-get update > /dev/null 2>&1
         apt list --upgradable 2>/dev/null | grep 'upgradable from' && exit 1
     elif [ -x /usr/bin/yum ]; then
         yum check-update -q || exit 1
@@ -27,8 +27,9 @@ if [ -z "${1}" ]; then
     exit 64
 fi
 
-if docker run --rm --entrypoint /bin/sh -u root -v $(readlink -f ${0}):/check_update.sh "${1}" /check_update.sh; then
-    >&2 echo "Packages in ${1} are up-to-date"
+>&2 echo "INFO: Checking if packages in ${1} are up-to-date"
+if docker run --rm --entrypoint /bin/sh -u root -v "$(readlink -f "${0}")":/check_update.sh "${1}" /check_update.sh; then
+    >&2 echo "INFO: Packages in ${1} are up-to-date"
 else
-    >&2 echo "Packages in ${1} are outdated" && exit 1
+    >&2 echo "WARNING: Packages in ${1} are outdated" && exit 1
 fi

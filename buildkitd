@@ -14,10 +14,13 @@ set -o nounset
 set -o pipefail
 
 IFS=$'\n\t'
-SCRIPT_FOLDER="$(dirname $(readlink -f "${0}"))"
+SCRIPT_FOLDER="$(dirname "$(readlink -f "${0}")")"
 
 BUILDKIT_VERSION="${BUILDKIT_VERSION:-latest}"
 BUILDKIT_PORT="${BUILDKIT_PORT:-1234}"
+BUILDKIT_VOLUMENAME="${BUILDKIT_VOLUMENAME:-buildkitd}"
+
+export BUILDKIT_HOST="${BUILDKIT_HOST:-"tcp://0.0.0.0:${BUILDKIT_PORT}"}"
 
 # Need docker
 if ! command -v docker > /dev/null; then
@@ -25,7 +28,7 @@ if ! command -v docker > /dev/null; then
   exit 1
 fi
 
-if [[ ! -x ${SCRIPT_FOLDER}/bin/buildctl ]]; then
+if [[ ! -x "${SCRIPT_FOLDER}/bin/buildctl" ]]; then
   if [[ $(uname) = "Darwin" ]]; then
     platform="darwin-amd64"
   else
@@ -34,19 +37,23 @@ if [[ ! -x ${SCRIPT_FOLDER}/bin/buildctl ]]; then
   >&2 echo "INFO: Downloading buildkit (${BUILDKIT_VERSION}) binaries for platform ${platform}"
   releaseinfo=$(mktemp)
   if [[ "${BUILDKIT_VERSION}" = "latest" ]]; then
-    curl -s https://api.github.com/repos/moby/buildkit/releases/${BUILDKIT_VERSION} > "${releaseinfo}"
+    curl -s "https://api.github.com/repos/moby/buildkit/releases/${BUILDKIT_VERSION}" > "${releaseinfo}"
   else
-    curl -s https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION} > "${releaseinfo}"
+    curl -s "https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION}" > "${releaseinfo}"
   fi
-  buildkit_url="$(cat ${releaseinfo} | jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url')"
+  buildkit_url="$(jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url' "${releaseinfo}")"
   >&2 echo "INFO: Downloading ${buildkit_url}"
-  curl -sL -o ${SCRIPT_FOLDER}/buildkit.tar.gz "${buildkit_url}"
-  tar -C ${SCRIPT_FOLDER} -zxf ${SCRIPT_FOLDER}/buildkit.tar.gz
+  curl -sL -o "${SCRIPT_FOLDER}/buildkit.tar.gz" "${buildkit_url}"
+  tar -C "${SCRIPT_FOLDER}" -zxf "${SCRIPT_FOLDER}/buildkit.tar.gz"
   rm "${releaseinfo}"
 fi
 
+host() {
+  echo "${BUILDKIT_HOST}"
+}
+
 status() {
-  if ${SCRIPT_FOLDER}/bin/buildctl du &> /dev/null; then
+  if "${SCRIPT_FOLDER}/bin/buildctl" du &> /dev/null; then
     >&2 echo "INFO: buildkitd is running"
     return 0
   else
@@ -55,15 +62,28 @@ status() {
   fi
 }
 
+check_volume() {
+  if ! docker volume inspect "${BUILDKIT_VOLUMENAME}" &> /dev/null; then
+    docker volume create "${BUILDKIT_VOLUMENAME}"
+  fi
+}
+
 start() {
-  mkdir -p "${SCRIPT_FOLDER}/.buildkit"
-  docker pull moby/buildkit:${BUILDKIT_VERSION}
-  docker run -d --privileged --rm -p ${BUILDKIT_PORT}:${BUILDKIT_PORT} -v "$(readlink -f ${SCRIPT_FOLDER}/.buildkit):/var/lib/buildkit" moby/buildkit:${BUILDKIT_VERSION} --addr tcp://0.0.0.0:${BUILDKIT_PORT} "$@"
+  if ! status 2> /dev/null; then
+    check_volume
+    docker pull "moby/buildkit:${BUILDKIT_VERSION}"
+    docker run -d --privileged --rm -p "${BUILDKIT_PORT}:${BUILDKIT_PORT}" --mount source="${BUILDKIT_VOLUMENAME}",target=/var/lib/buildkit "moby/buildkit:${BUILDKIT_VERSION}" --addr "${BUILDKIT_HOST}" "$@"
+  else 
+    >&2 echo "WARNING: buildkitd is already running @ ${BUILDKIT_HOST}!"
+  fi
 }
 
 stop() {
-  if status; then
-    docker stop $(docker ps -qf "publish=${BUILDKIT_PORT}")
+  if status 2> /dev/null; then
+    >&2 echo "INFO: stopping buildkitd @ ${BUILDKIT_HOST}"
+    docker stop "$(docker ps -qf "publish=${BUILDKIT_PORT}")"
+  else 
+    >&2 echo "INFO: buildkitd is not running"
   fi
 }
 

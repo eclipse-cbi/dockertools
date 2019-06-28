@@ -76,6 +76,7 @@ run() {
     fi
     BUILDKIT_HOST="$("${SCRIPT_FOLDER}/buildkitd" host)"
     export BUILDKIT_HOST
+    timeout 10s /bin/bash -c "while ! \"${SCRIPT_FOLDER}/buildkitd\" status 2> /dev/null; do sleep 1; done"
     prune
     $args
   fi

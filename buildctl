@@ -33,7 +33,7 @@ build() {
     --local dockerfile="$(dirname "${dockerfile}")" \
     --opt filename="$(basename "${dockerfile}")" \
     --output type=docker,name="${image}:${tag}" \
-    --export-cache type=inline | docker load
+    --export-cache type=inline,mode=max | docker load
 }
 
 build_with_cache() {
@@ -49,7 +49,7 @@ build_with_cache() {
     --local dockerfile="$(dirname "${dockerfile}")" \
     --opt filename="$(basename "${dockerfile}")" \
     --output type=docker,name="${image}:${tag}" \
-    --export-cache type=inline \
+    --export-cache type=inline,mode=max \
     --import-cache type=registry,ref="${image}:${tag}" | docker load
 }
 

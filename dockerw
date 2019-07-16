@@ -77,7 +77,7 @@ build() {
   fi
   
   local parent_image
-  parent_image=$(grep -E " *FROM" "${dockerfile}" | sed -E 's/.*FROM (.*)/\1/')
+  parent_image=$(grep -E " *FROM" "${dockerfile}" | tail -n +2 | sed -E 's/ *FROM +([^ ]*).*/\1/')
   
   docker pull "${parent_image}" &>> "${dockerfile}.buildlog"
 

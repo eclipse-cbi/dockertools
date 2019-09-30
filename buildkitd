@@ -84,7 +84,7 @@ stop() {
   local ppid="${1}"
   if status 2> /dev/null; then
     >&2 echo "INFO: stopping buildkitd @ ${BUILDKIT_HOST}"
-    docker stop "$(docker ps -qf "publish=${BUILDKIT_PORT}")"
+    docker stop "$(docker ps -qf "publish=${BUILDKIT_PORT}")" || :
     >&2 echo "INFO: removing buildkitd volume ${BUILDKIT_VOLUMENAME}-${ppid}"
     docker volume rm -f "${BUILDKIT_VOLUMENAME}-${ppid}"
   else 

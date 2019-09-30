@@ -63,25 +63,30 @@ status() {
 }
 
 check_volume() {
-  if ! docker volume inspect "${BUILDKIT_VOLUMENAME}" &> /dev/null; then
-    docker volume create "${BUILDKIT_VOLUMENAME}"
+  local ppid="${1}"
+  if ! docker volume inspect "${BUILDKIT_VOLUMENAME}-${ppid}" &> /dev/null; then
+    docker volume create "${BUILDKIT_VOLUMENAME}-${ppid}"
   fi
 }
 
 start() {
+  local ppid="${1}"
   if ! status 2> /dev/null; then
-    check_volume
+    check_volume "${ppid}"
     docker pull "moby/buildkit:${BUILDKIT_VERSION}"
-    docker run -d --privileged --rm -p "${BUILDKIT_PORT}:${BUILDKIT_PORT}" --mount source="${BUILDKIT_VOLUMENAME}",target=/var/lib/buildkit "moby/buildkit:${BUILDKIT_VERSION}" --addr "${BUILDKIT_HOST}" "$@"
+    docker run -d --privileged --rm -p "${BUILDKIT_PORT}:${BUILDKIT_PORT}" --mount source="${BUILDKIT_VOLUMENAME}-${ppid}",target=/var/lib/buildkit "moby/buildkit:${BUILDKIT_VERSION}" --addr "${BUILDKIT_HOST}" "$@"
   else 
     >&2 echo "WARNING: buildkitd is already running @ ${BUILDKIT_HOST}!"
   fi
 }
 
 stop() {
+  local ppid="${1}"
   if status 2> /dev/null; then
     >&2 echo "INFO: stopping buildkitd @ ${BUILDKIT_HOST}"
     docker stop "$(docker ps -qf "publish=${BUILDKIT_PORT}")"
+    >&2 echo "INFO: removing buildkitd volume ${BUILDKIT_VOLUMENAME}-${ppid}"
+    docker volume rm -f "${BUILDKIT_VOLUMENAME}-${ppid}"
   else 
     >&2 echo "INFO: buildkitd is not running"
   fi

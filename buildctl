@@ -17,7 +17,7 @@ IFS=$'\n\t'
 SCRIPT_FOLDER="$(dirname "$(readlink -f "${0}")")"
 
 stop_daemon() {
-  "${SCRIPT_FOLDER}/buildkitd" stop || :
+  "${SCRIPT_FOLDER}/buildkitd" stop $$ || :
 }
 
 build() {
@@ -72,7 +72,7 @@ run() {
   else
     trap stop_daemon EXIT
     if ! "${SCRIPT_FOLDER}/buildkitd" status 2> /dev/null; then
-      "${SCRIPT_FOLDER}/buildkitd" start
+      "${SCRIPT_FOLDER}/buildkitd" start $$
     fi
     BUILDKIT_HOST="$("${SCRIPT_FOLDER}/buildkitd" host)"
     export BUILDKIT_HOST

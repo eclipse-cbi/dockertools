@@ -60,6 +60,13 @@ build() {
   local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
 
+  BUILDKIT_PORT="${BUILDKIT_PORT:-$(shuf -i 52000-55000 -n 1)}"
+  export BUILDKIT_PORT
+  BUILDKIT_VOLUMENAME="${BUILDKIT_VOLUMENAME:-"buildkitd"-$$}"
+  export BUILDKIT_VOLUMENAME
+  export BUILDKIT_REMOVE_VOLUME_AFTER_USE=true
+  export BUILDCTL_STOP_DAEMON_AFTER_USE=true
+
   if [[ $# -gt 4 ]]; then
     shift 4
   else

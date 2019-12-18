@@ -17,7 +17,7 @@ IFS=$'\n\t'
 SCRIPT_FOLDER="$(dirname "$(readlink -f "${0}")")"
 
 stop_daemon() {
-  "${SCRIPT_FOLDER}/buildkitd" stop $$ || :
+  "${SCRIPT_FOLDER}/buildkitd" stop || :
 }
 
 build() {

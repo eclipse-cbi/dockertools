@@ -70,7 +70,9 @@ run() {
   if [[ "$f" == "" ]]; then
     main
   else
-    trap stop_daemon EXIT
+    if [[ -n "${BUILDCTL_STOP_DAEMON_AFTER_USE+x}" ]]; then
+      trap stop_daemon EXIT
+    fi
     if ! "${SCRIPT_FOLDER}/buildkitd" status 2> /dev/null; then
       "${SCRIPT_FOLDER}/buildkitd" start $$
     fi

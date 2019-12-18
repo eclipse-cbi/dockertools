@@ -83,8 +83,10 @@ stop() {
   if status 2> /dev/null; then
     >&2 echo "INFO: stopping buildkitd @ ${BUILDKIT_HOST}"
     docker stop "$(docker ps -qf "publish=${BUILDKIT_PORT}")" || :
-    >&2 echo "INFO: removing buildkitd volume ${BUILDKIT_VOLUMENAME}"
-    docker volume rm -f "${BUILDKIT_VOLUMENAME}"
+    if [[ -n "${BUILDKIT_REMOVE_VOLUME_AFTER_USE+x}" ]]; then
+      >&2 echo "INFO: removing buildkitd volume ${BUILDKIT_VOLUMENAME}"
+      docker volume rm -f "${BUILDKIT_VOLUMENAME}"
+    fi
   else 
     >&2 echo "INFO: buildkitd is not running"
   fi

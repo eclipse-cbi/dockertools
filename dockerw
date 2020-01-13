@@ -91,6 +91,7 @@ build() {
     docker pull "${parent_image}" &>> "${dockerfile}.buildlog" || :
   else 
     echo "WARN: Parent image is parameterized (${parent_image})" | tee -a "${dockerfile}.buildlog" >&2
+    echo "DEBUG: Additional args are " "${@}" | tee -a "${dockerfile}.buildlog" >&2
   fi
 
   if ! docker image inspect "${image}:${tag}" &>> "${dockerfile}.buildlog"; then

@@ -87,7 +87,11 @@ build() {
   local parent_image
   parent_image=$(grep -E " *FROM" "${dockerfile}" | tail -1 | sed -E 's/ *FROM +([^ ]*).*/\1/')
   
-  docker pull "${parent_image}" &>> "${dockerfile}.buildlog" || :
+  if [[ "${parent_image}" != *"\$"* ]]; then
+    docker pull "${parent_image}" &>> "${dockerfile}.buildlog" || :
+  else 
+    echo "WARN: Parent image is parameterized (${parent_image})" | tee -a "${dockerfile}.buildlog" >&2
+  fi
 
   if ! docker image inspect "${image}:${tag}" &>> "${dockerfile}.buildlog"; then
     echo "INFO: Cannot find ${image}:${tag} on local repository" | tee -a "${dockerfile}.buildlog" >&2

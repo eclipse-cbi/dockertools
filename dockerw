@@ -34,7 +34,7 @@ digest() {
   local image="${1}"
   local tag="${2}"
 
-  docker image list --no-trunc --format "{{.ID}}" "${image}${tag:+":${tag}"}"
+  (docker inspect --format='{{index .RepoDigests 0}}' "${image}${tag:+":${tag}"}" | sed -E 's/.*sha256:(.*)/\1/g') || :
 }
 
 push_if_changed() {
@@ -49,6 +49,7 @@ push_if_changed() {
   if [[ "${currentDigest}" != "${cachedDigest}" ]]; then
     echo "INFO: pushing '${image}:${tag}' as it has been updated since the last time is has been pulled."
     push "${image}" "${tag}"
+    digest "${image}" "${tag}" > "${dockerfile}.digest"
   else
     echo "INFO: No need to push '${image}:${tag}', it has same content since the last time is has been pulled."
   fi

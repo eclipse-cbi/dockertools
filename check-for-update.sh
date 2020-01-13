@@ -16,8 +16,10 @@ if [ -f /.dockerenv ]; then
     elif [ -x /usr/bin/apt-get ]; then
         apt-get update > /dev/null 2>&1
         apt list --upgradable 2>/dev/null | grep 'upgradable from' && exit 1
+    elif [ -x /usr/bin/dnf ]; then
+        dnf -q check-update || exit $?
     elif [ -x /usr/bin/yum ]; then
-        yum check-update -q || exit 1
+        yum check-update -q || exit $?
     fi
     exit 0
 fi

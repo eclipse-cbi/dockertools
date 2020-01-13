@@ -92,7 +92,7 @@ build() {
   if ! docker image inspect "${image}:${tag}" &>> "${dockerfile}.buildlog"; then
     echo "INFO: Cannot find ${image}:${tag} on local repository" | tee -a "${dockerfile}.buildlog" >&2
     echo "INFO: Building ${dockerfile} fot the first time" | tee -a "${dockerfile}.buildlog" >&2
-    "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+    "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" "${@}" | tee -a "${dockerfile}.buildlog" >&2
   else
     local check_for_update_logs
     check_for_update_logs=$(mktemp)
@@ -101,11 +101,11 @@ build() {
     if "${SCRIPT_FOLDER}/check-for-update.sh" "${image}:${tag}" > "${check_for_update_logs}"; then
       # ${image}:${tag} packages are up to date, build with cache
       echo "INFO: Building ${dockerfile} with cache from ${image}:${tag} (all packages are up to date)" | tee -a "${dockerfile}.buildlog" >&2
-      "${SCRIPT_FOLDER}/buildctl" build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+      "${SCRIPT_FOLDER}/buildctl" build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}" "${@}" | tee -a "${dockerfile}.buildlog" >&2
     elif "${SCRIPT_FOLDER}/check-for-update.sh" "${parent_image}" > "${check_for_update_logs_parent}"; then
       # ${image}:${tag} packages are outdated, but ${parent_image} packages are up to date, build with no cache
       echo "INFO: Building ${dockerfile} with no cache (some packages are outdated)" | tee -a "${dockerfile}.buildlog" >&2
-      "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+      "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" "${@}" | tee -a "${dockerfile}.buildlog" >&2
     elif [[ $(diff "${check_for_update_logs}" "${check_for_update_logs_parent}" | grep -c '^<') -gt 0 ]]; then
       # Both ${image}:${tag} and ${parent_image} packages are outdated, 
       # some packages from ${image}:${tag} are not outdated/installed in ${parent_image}, build with no cache
@@ -120,7 +120,7 @@ build() {
         diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
       } >> "${dockerfile}.buildlog" 
 
-      "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+      "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" "${@}" | tee -a "${dockerfile}.buildlog" >&2
     else
       # Both ${image}:${tag} and ${parent_image} packages are outdated, 
       # but all outdated packages from ${image}:${tag} come from ${parent_image}, build with cache
@@ -135,7 +135,7 @@ build() {
         diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
       } >> "${dockerfile}.buildlog" 
 
-      "${SCRIPT_FOLDER}/buildctl" build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}" | tee -a "${dockerfile}.buildlog" >&2
+      "${SCRIPT_FOLDER}/buildctl" build_with_cache "${image}" "${tag}" "${dockerfile}" "${context}" "${@}" | tee -a "${dockerfile}.buildlog" >&2
     fi
 
     rm -f "${check_for_update_logs}" "${check_for_update_logs_parent}"
@@ -154,7 +154,7 @@ build_and_push() {
     shift $#
   fi
 
-  build "${image}" "${tag}" "${dockerfile}" "${context}"
+  build "${image}" "${tag}" "${dockerfile}" "${context}" "${@}"
   push_if_changed "${image}" "${tag}" "${dockerfile}"
 }
 

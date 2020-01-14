@@ -63,12 +63,18 @@ status() {
 }
 
 check_volume() {
+  lock "/tmp/buildkitd_check_volume.lock"
+
   if ! docker volume inspect "${BUILDKIT_VOLUMENAME}" &> /dev/null; then
     docker volume create "${BUILDKIT_VOLUMENAME}"
   fi
+
+  unlock "/tmp/buildkitd_check_volume.lock"
 }
 
 start() {
+  lock "/tmp/buildkitd_start.lock"
+
   if ! status 2> /dev/null; then
     check_volume
     docker pull "moby/buildkit:${BUILDKIT_VERSION}"
@@ -76,9 +82,13 @@ start() {
   else 
     >&2 echo "WARNING: buildkitd is already running @ ${BUILDKIT_HOST}!"
   fi
+
+  unlock "/tmp/buildkitd_start.lock"
 }
 
 stop() {
+  lock "/tmp/buildkitd_stop.lock"
+
   if status 2> /dev/null; then
     >&2 echo "INFO: stopping buildkitd @ ${BUILDKIT_HOST}"
     docker stop "$(docker ps -qf "publish=${BUILDKIT_PORT}")" || :
@@ -89,6 +99,22 @@ stop() {
   else 
     >&2 echo "INFO: buildkitd is not running"
   fi
+
+  unlock "/tmp/buildkitd_stop.lock"
+}
+
+lock() {
+  local lockfile="${1}"
+  while [[ -f "${lockfile}" ]]; do
+    sleep 1
+  done
+  echo 1 > "${lockfile}"
+  trap 'unlock '"${1}" EXIT
+}
+
+unlock() {
+  local lockfile="${1}"
+  rm -f "${lockfile}"
 }
 
 main() {

@@ -57,6 +57,11 @@ build_with_cache() {
   local context="${4:-"$(dirname "${dockerfile}")"}"
   local push="${5:-"false"}"
   local latest="${6:-"false"}"
+  
+  # if no buildcache available from registry, then fallback to no cache
+  if ! DOCKER_CLI_EXPERIMENTAL=enabled docker manifest inspect "${image}:${tag}-buildcache" >/dev/null; then
+    build "${@}"
+  fi
 
   if [[ $# -gt 6 ]]; then
     shift 6

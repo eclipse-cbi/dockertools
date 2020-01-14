@@ -39,10 +39,10 @@ digest() {
 
 expand_build_args() {
   local tpl="${1}"
-  mapfile -t args < <(echo "${@:2}" | sed -e 's/--opt build-arg://g' | tr ' ' '\n')
+  mapfile -t buildargs < <(echo "${@:2}" | sed -e 's/--opt build-arg://g' | tr ' ' '\n')
 
   str="${tpl}"
-  for arg in "${args[@]}"; do
+  for arg in "${buildargs[@]}"; do
     str=$(echo "${str}" | sed -E 's/\$\{?'"${arg%%=*}"'\}?/'"${arg##*=}"'/g')
   done
   echo "${str}"

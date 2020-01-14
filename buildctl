@@ -101,13 +101,9 @@ run() {
     if [[ -n "${BUILDCTL_STOP_DAEMON_AFTER_USE+x}" ]]; then
       trap stop_daemon EXIT
     fi
-    if ! "${SCRIPT_FOLDER}/buildkitd" status 2> /dev/null; then
-      "${SCRIPT_FOLDER}/buildkitd" start $$
-    fi
+    "${SCRIPT_FOLDER}/buildkitd" start
     BUILDKIT_HOST="$("${SCRIPT_FOLDER}/buildkitd" host)"
     export BUILDKIT_HOST
-    timeout 30s /bin/bash -c "while ! \"${SCRIPT_FOLDER}/buildkitd\" status 2> /dev/null; do sleep 1; done"
-    prune
     $args
   fi
 }

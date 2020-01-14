@@ -79,6 +79,7 @@ start() {
     check_volume
     docker pull "moby/buildkit:${BUILDKIT_VERSION}"
     docker run -d --privileged --rm -p "${BUILDKIT_PORT}:${BUILDKIT_PORT}" --mount source="${BUILDKIT_VOLUMENAME}",target=/var/lib/buildkit "moby/buildkit:${BUILDKIT_VERSION}" --addr "${BUILDKIT_HOST}" "$@"
+    timeout 60s /bin/bash -c "while ! status 2> /dev/null; do sleep 1; done"
   else 
     >&2 echo "WARNING: buildkitd is already running @ ${BUILDKIT_HOST}!"
   fi

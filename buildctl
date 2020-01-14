@@ -83,7 +83,7 @@ build_with_cache() {
 
 prune() {
   "${SCRIPT_FOLDER}/bin/buildctl" prune \
-    --keep-storage 10240
+    --keep-storage "${1:-10240}"
 }
 
 main() {

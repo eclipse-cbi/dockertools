@@ -38,14 +38,13 @@ if [[ ! -x "${SCRIPT_FOLDER}/bin/buildctl" ]]; then
   >&2 echo "INFO: Downloading buildkit (${BUILDKIT_VERSION}) binaries for platform ${platform}"
   releaseinfo=$(mktemp)
   if [[ "${BUILDKIT_VERSION}" = "latest" ]]; then
-    curl -s "https://api.github.com/repos/moby/buildkit/releases/${BUILDKIT_VERSION}" > "${releaseinfo}"
+    curl -sSL "https://api.github.com/repos/moby/buildkit/releases/${BUILDKIT_VERSION}" > "${releaseinfo}"
   else
-    curl -s "https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION}" > "${releaseinfo}"
+    curl -sSL "https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION}" > "${releaseinfo}"
   fi
   buildkit_url="$(jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url' "${releaseinfo}")"
   >&2 echo "INFO: Downloading ${buildkit_url}"
-  curl -sL -o "${SCRIPT_FOLDER}/buildkit.tar.gz" "${buildkit_url}"
-  tar -C "${SCRIPT_FOLDER}" -zxf "${SCRIPT_FOLDER}/buildkit.tar.gz"
+  curl -sSL "${buildkit_url}" | tar -C "${SCRIPT_FOLDER}" -zx
   rm "${releaseinfo}"
 fi
 

@@ -25,9 +25,11 @@ build() {
   local tag="${2}"
   local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
+  local push="${5:-"false"}"
+  local latest="${6:-}"
 
-  if [[ $# -gt 4 ]]; then
-    shift 4
+  if [[ $# -gt 6 ]]; then
+    shift 6
   else
     shift $#
   fi
@@ -38,9 +40,9 @@ build() {
     --local context="${context}" \
     --local dockerfile="$(dirname "${dockerfile}")" \
     --opt filename="$(basename "${dockerfile}")" \
-    --output type=docker,name="${image}:${tag}" \
-    --export-cache type=inline,mode=max \
-    "${@}" | docker load
+    --output "type=image,\"name=${image}:${tag}${latest:+",${image}:latest"}\",push=${push}" \
+    --export-cache "type=registry,mode=max,ref=${image}:${tag}-buildcache" \
+    "${@}"
 }
 
 build_with_cache() {
@@ -48,9 +50,11 @@ build_with_cache() {
   local tag="${2}"
   local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
+  local push="${5:-"false"}"
+  local latest="${6:-}"
 
-  if [[ $# -gt 4 ]]; then
-    shift 4
+  if [[ $# -gt 6 ]]; then
+    shift 6
   else
     shift $#
   fi
@@ -61,9 +65,9 @@ build_with_cache() {
     --local context="${context}" \
     --local dockerfile="$(dirname "${dockerfile}")" \
     --opt filename="$(basename "${dockerfile}")" \
-    --output type=docker,name="${image}:${tag}" \
-    --export-cache type=inline,mode=max \
-    --import-cache type=registry,ref="${image}:${tag}" \
+    --output "type=image,\"name=${image}:${tag}${latest:+",${image}:latest"}\",push=${push}" \
+    --export-cache "type=registry,mode=max,ref=${image}:${tag}-buildcache" \
+    --import-cache "type=registry,ref=${image}:${tag}-buildcache" \
     "${@}" | docker load
 }
 

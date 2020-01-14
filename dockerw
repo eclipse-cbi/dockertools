@@ -55,6 +55,17 @@ push_if_changed() {
   fi
 }
 
+expand_build_args() {
+  local tpl="${1}"
+  mapfile -t args < <(echo "${@:2}" | sed -e 's/--opt build-arg://g' | tr ' ' '\n')
+
+  str="${tpl}"
+  for arg in "${args[@]}"; do
+    str=$(echo "${str}" | sed -E 's/\$\{?'"${arg%%=*}"'\}?/'"${arg##*=}"'/g')
+  done
+  echo "${str}"
+}
+
 build() {
   local image="${1}"
   local tag="${2}"
@@ -87,12 +98,8 @@ build() {
   local parent_image
   parent_image=$(grep -E " *FROM" "${dockerfile}" | tail -1 | sed -E 's/ *FROM +([^ ]*).*/\1/')
   
-  if [[ "${parent_image}" != *"\$"* ]]; then
-    docker pull "${parent_image}" &>> "${dockerfile}.buildlog" || :
-  else 
-    echo "WARN: Parent image is parameterized (${parent_image})" | tee -a "${dockerfile}.buildlog" >&2
-    echo "DEBUG: Additional args are " "${@}" | tee -a "${dockerfile}.buildlog" >&2
-  fi
+  parent_image="$(expand_build_args "${parent_image}" "${@}")"
+  docker pull "${parent_image}" &>> "${dockerfile}.buildlog" || :
 
   if ! docker image inspect "${image}:${tag}" &>> "${dockerfile}.buildlog"; then
     echo "INFO: Cannot find ${image}:${tag} on local repository" | tee -a "${dockerfile}.buildlog" >&2

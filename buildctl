@@ -26,21 +26,11 @@ build() {
   local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
 
-  "${SCRIPT_FOLDER}/bin/buildctl" build \
-    --progress=plain \
-    --frontend=dockerfile.v0 \
-    --local context="${context}" \
-    --local dockerfile="$(dirname "${dockerfile}")" \
-    --opt filename="$(basename "${dockerfile}")" \
-    --output type=docker,name="${image}:${tag}" \
-    --export-cache type=inline,mode=max | docker load
-}
-
-build_with_cache() {
-  local image="${1}"
-  local tag="${2}"
-  local dockerfile="${3:-Dockerfile}"
-  local context="${4:-"$(dirname "${dockerfile}")"}"
+  if [[ $# -gt 4 ]]; then
+    shift 4
+  else
+    shift $#
+  fi
 
   "${SCRIPT_FOLDER}/bin/buildctl" build \
     --progress=plain \
@@ -50,7 +40,31 @@ build_with_cache() {
     --opt filename="$(basename "${dockerfile}")" \
     --output type=docker,name="${image}:${tag}" \
     --export-cache type=inline,mode=max \
-    --import-cache type=registry,ref="${image}:${tag}" | docker load
+    "${@}" | docker load
+}
+
+build_with_cache() {
+  local image="${1}"
+  local tag="${2}"
+  local dockerfile="${3:-Dockerfile}"
+  local context="${4:-"$(dirname "${dockerfile}")"}"
+
+  if [[ $# -gt 4 ]]; then
+    shift 4
+  else
+    shift $#
+  fi
+
+  "${SCRIPT_FOLDER}/bin/buildctl" build \
+    --progress=plain \
+    --frontend=dockerfile.v0 \
+    --local context="${context}" \
+    --local dockerfile="$(dirname "${dockerfile}")" \
+    --opt filename="$(basename "${dockerfile}")" \
+    --output type=docker,name="${image}:${tag}" \
+    --export-cache type=inline,mode=max \
+    --import-cache type=registry,ref="${image}:${tag}" \
+    "${@}" | docker load
 }
 
 prune() {

@@ -102,8 +102,6 @@ run() {
       trap stop_daemon EXIT
     fi
     "${SCRIPT_FOLDER}/buildkitd" start
-    BUILDKIT_HOST="$("${SCRIPT_FOLDER}/buildkitd" host)"
-    export BUILDKIT_HOST
     $args
   fi
 }

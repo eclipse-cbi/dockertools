@@ -26,12 +26,17 @@ build() {
   local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
   local push="${5:-"false"}"
-  local latest="${6:-}"
+  local latest="${6:-"false"}"
 
   if [[ $# -gt 6 ]]; then
     shift 6
   else
     shift $#
+  fi
+
+  local name="${image}:${tag}"
+  if [[ "${latest}" == "true" ]]; then
+    name="${name},${image}:latest"
   fi
 
   "${SCRIPT_FOLDER}/bin/buildctl" build \
@@ -40,7 +45,7 @@ build() {
     --local context="${context}" \
     --local dockerfile="$(dirname "${dockerfile}")" \
     --opt filename="$(basename "${dockerfile}")" \
-    --output "type=image,\"name=${image}:${tag}${latest:+",${image}:latest"}\",push=${push}" \
+    --output "type=image,\"name=${name}\",push=${push}" \
     --export-cache "type=registry,mode=max,ref=${image}:${tag}-buildcache" \
     "${@}"
 }
@@ -51,12 +56,17 @@ build_with_cache() {
   local dockerfile="${3:-Dockerfile}"
   local context="${4:-"$(dirname "${dockerfile}")"}"
   local push="${5:-"false"}"
-  local latest="${6:-}"
+  local latest="${6:-"false"}"
 
   if [[ $# -gt 6 ]]; then
     shift 6
   else
     shift $#
+  fi
+
+  local name="${image}:${tag}"
+  if [[ "${latest}" == "true" ]]; then
+    name="${name},${image}:latest"
   fi
 
   "${SCRIPT_FOLDER}/bin/buildctl" build \
@@ -65,7 +75,7 @@ build_with_cache() {
     --local context="${context}" \
     --local dockerfile="$(dirname "${dockerfile}")" \
     --opt filename="$(basename "${dockerfile}")" \
-    --output "type=image,\"name=${image}:${tag}${latest:+",${image}:latest"}\",push=${push}" \
+    --output "type=image,\"name=${name}\",push=${push}" \
     --export-cache "type=registry,mode=max,ref=${image}:${tag}-buildcache" \
     --import-cache "type=registry,ref=${image}:${tag}-buildcache" \
     "${@}" | docker load

@@ -169,10 +169,10 @@ push_all() {
       tag="latest"
     fi
     
-    push_if_changed "${repo}/${image}" "${tag}" "${dockerfile}"
+    push "${repo}/${image}" "${tag}" "${dockerfile}"
     
     if [[ "${dockerfile}" = "${dockerfiles[-1]}" ]] && ! find "${from}" -type l -name "latest" | grep '.*'; then
-      push_if_changed "${repo}/${image}" "latest" "${dockerfile}"
+      push "${repo}/${image}" "latest" "${dockerfile}"
     fi
   done
 }

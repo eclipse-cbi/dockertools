@@ -36,7 +36,7 @@ digest() {
   local ref="${image}${tag:+":${tag}"}"
 
   if docker image inspect "${ref}" &> /dev/null; then
-    docker pull -q "${ref}"
+    docker pull -q "${ref}" &> /dev/null
   fi
   (docker inspect --format='{{index .RepoDigests 0}}' "${ref}" | sed -E 's/.*@(.*)/\1/g') || :
 }

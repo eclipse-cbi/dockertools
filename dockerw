@@ -33,8 +33,12 @@ push() {
 digest() {
   local image="${1}"
   local tag="${2}"
+  local ref="${image}${tag:+":${tag}"}"
 
-  (docker inspect --format='{{index .RepoDigests 0}}' "${image}${tag:+":${tag}"}" | sed -E 's/.*@(.*)/\1/g') || :
+  if docker image inspect "${ref}" &> /dev/null; then
+    docker pull -q "${ref}"
+  fi
+  (docker inspect --format='{{index .RepoDigests 0}}' "${ref}" | sed -E 's/.*@(.*)/\1/g') || :
 }
 
 expand_build_args() {

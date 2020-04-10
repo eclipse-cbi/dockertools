@@ -31,7 +31,7 @@ fi
 
 lock() {
   local lockfile="${1}"
-  while ! mkdir "${lockfile}"; do
+  while ! mkdir "${lockfile}" &> /dev/null; do
     sleep 1
   done
   trap 'unlock '"${1}" EXIT SIGINT SIGTERM

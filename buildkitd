@@ -31,16 +31,15 @@ fi
 
 lock() {
   local lockfile="${1}"
-  while [[ -f "${lockfile}" ]]; do
+  while ! mkdir "${lockfile}"; do
     sleep 1
   done
-  echo 1 > "${lockfile}"
   trap 'unlock '"${1}" EXIT SIGINT SIGTERM
 }
 
 unlock() {
   local lockfile="${1}"
-  rm -f "${lockfile}"
+  rm -rf "${lockfile}"
 }
 
 lock "/tmp/buildctl_install.lock"

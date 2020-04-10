@@ -98,7 +98,7 @@ run() {
   if [[ "$f" == "" ]]; then
     main
   else
-    if [[ -n "${BUILDCTL_STOP_DAEMON_AFTER_USE+x}" ]]; then
+    if [[ "${BUILDCTL_STOP_DAEMON_AFTER_USE:-}" == "true" ]]; then
       trap stop_daemon EXIT
     fi
     "${SCRIPT_FOLDER}/buildkitd" start

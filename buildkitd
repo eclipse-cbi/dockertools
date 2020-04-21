@@ -52,7 +52,8 @@ if [[ ! -x "${SCRIPT_FOLDER}/bin/buildctl" ]]; then
   >&2 echo "INFO: Downloading buildkit (${BUILDKIT_VERSION}) binaries for platform ${platform}"
   releaseinfo=$(mktemp)
   if [[ "${BUILDKIT_VERSION}" = "latest" ]]; then
-    curl -sSL "https://api.github.com/repos/moby/buildkit/releases/${BUILDKIT_VERSION}" > "${releaseinfo}"
+    latest_tag_name="$(curl -sSL "https://api.github.com/repos/moby/buildkit/releases" | jq -r '.[] | .tag_name' | grep -E "v[0-9]+.*" | sort -V | tail -n 1)"
+    curl -sSL "https://api.github.com/repos/moby/buildkit/releases/tags/${latest_tag_name}" > "${releaseinfo}"
   else
     curl -sSL "https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION}" > "${releaseinfo}"
   fi

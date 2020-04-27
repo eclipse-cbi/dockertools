@@ -96,10 +96,11 @@ start() {
     docker pull "moby/buildkit:${BUILDKIT_VERSION}"
     docker run -d --privileged --rm -p "${BUILDKIT_PORT}:${BUILDKIT_PORT}" --mount source="${BUILDKIT_VOLUMENAME}",target=/var/lib/buildkit "moby/buildkit:${BUILDKIT_VERSION}" --addr "${BUILDKIT_HOST}" "$@"
     echo -n "Buildkitd is starting @ ${BUILDKIT_HOST}"
-    timeout 60s /bin/bash -c "while ! \"${SCRIPT_FOLDER}/buildkitd\" status 2> /dev/null; do sleep 1; echo -n '.'; done"
+    timeout 60s /bin/bash -c "while ! \"${SCRIPT_FOLDER}/buildkitd\" status 2> /dev/null; do sleep 1; echo -n '.'; done" || :
     echo
     if ! status 2> /dev/null; then
       echo "ERROR: impossible to start buildkitd  @ ${BUILDKIT_HOST}!"
+      unlock "/tmp/buildkitd_start.lock"
       exit 1
     fi
   else 

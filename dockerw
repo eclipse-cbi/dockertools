@@ -52,6 +52,74 @@ expand_build_args() {
   echo "${str}"
 }
 
+build2() {
+  local images="${1}"
+  local dockerfile="${2:-Dockerfile}"
+  local context="${3:-"$(dirname "${dockerfile}")"}"
+  local push="${4:-"false"}"
+
+  # BUILDKIT_PORT="${BUILDKIT_PORT:-$(shuf -i 52000-55000 -n 1)}"
+  # export BUILDKIT_PORT
+  # BUILDKIT_VOLUMENAME="${BUILDKIT_VOLUMENAME:-"buildkitd"-$$}"
+  # export BUILDKIT_VOLUMENAME
+  # export BUILDKIT_REMOVE_VOLUME_AFTER_USE=${BUILDKIT_REMOVE_VOLUME_AFTER_USE:-false}
+  # export BUILDCTL_STOP_DAEMON_AFTER_USE=${BUILDCTL_STOP_DAEMON_AFTER_USE:-false}
+
+  if [[ $# -gt 4 ]]; then
+    shift 4
+  else
+    shift $#
+  fi
+
+  local first_image_name
+  first_image_name="$(echo "${images}" | cut -d, -f1)"
+
+  local parent_image
+  parent_image=$(grep -E " *FROM" "${dockerfile}" | tail -1 | sed -E 's/ *FROM +([^ ]*).*/\1/')
+  
+  parent_image="$(expand_build_args "${parent_image}" "${@}")"
+  docker pull "${parent_image}" &>> "${dockerfile}.buildlog" || :
+
+  if ! docker pull "${first_image_name}" &>> "${dockerfile}.buildlog"; then
+    echo "INFO: Cannot find ${first_image_name} on local repository"
+    echo "INFO: Building ${dockerfile} for the first time"
+    "${SCRIPT_FOLDER}/buildctl" build "${images}" "${dockerfile}" "${context}" "${push}" "${@}"
+  else
+    local check_for_update_logs check_for_update_logs_parent
+    check_for_update_logs=$(mktemp)
+    check_for_update_logs_parent=$(mktemp)
+    if "${SCRIPT_FOLDER}/check-for-update.sh" "${first_image_name}" > "${check_for_update_logs}"; then
+      # ${first_image_name} packages are up to date, build with cache
+      echo "INFO: Building ${dockerfile} with cache from ${first_image_name} (all packages are up to date)"
+
+      "${SCRIPT_FOLDER}/buildctl" build_with_cache2 "${image}" "${tag}" "${dockerfile}" "${context}" "${push}" "${latest}" "${@}"
+    elif "${SCRIPT_FOLDER}/check-for-update.sh" "${parent_image}" > "${check_for_update_logs_parent}"; then
+      # ${first_image_name} packages are outdated, but ${parent_image} packages are up to date, build with no cache
+      echo "INFO: Building ${dockerfile} with no cache (some packages are outdated)"
+
+      "${SCRIPT_FOLDER}/buildctl" build2 "${image}" "${tag}" "${dockerfile}" "${context}" "${push}" "${latest}" "${@}"
+    elif [[ $(diff "${check_for_update_logs}" "${check_for_update_logs_parent}" | grep -c '^<') -gt 0 ]]; then
+      # Both ${first_image_name} and ${parent_image} packages are outdated, 
+      # some packages from ${first_image_name} are not outdated/installed in ${parent_image}, build with no cache
+      echo "INFO: Building ${dockerfile} with no cache (some packages are outdated)"
+      echo "DEBUG: Package difference between ${first_image_name} <-> ${parent_image}"
+      diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
+
+      "${SCRIPT_FOLDER}/buildctl" build2 "${images}" "${dockerfile}" "${context}" "${push}" "${@}"
+    else
+      # Both ${first_image_name} and ${parent_image} packages are outdated, 
+      # but all outdated packages from ${first_image_name} come from ${parent_image}, build with cache
+      echo "INFO: Building ${dockerfile} with cache from ${first_image_name} (some packages are outdated, but they are controlled by parent image exclusively)"
+      echo "DEBUG: Package difference between ${first_image_name} <-> ${parent_image}"
+      diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
+
+      "${SCRIPT_FOLDER}/buildctl" build_with_cache2 "${images}" "${dockerfile}" "${context}" "${push}" "${@}"
+    fi
+
+    rm -f "${check_for_update_logs}" "${check_for_update_logs_parent}"
+  fi
+}
+
 build() {
   local image="${1}"
   local tag="${2}"
@@ -84,7 +152,7 @@ build() {
 
   if ! docker pull "${image}:${tag}" &>> "${dockerfile}.buildlog"; then
     echo "INFO: Cannot find ${image}:${tag} on local repository" | tee -a "${dockerfile}.buildlog" >&2
-    echo "INFO: Building ${dockerfile} fot the first time" | tee -a "${dockerfile}.buildlog" >&2
+    echo "INFO: Building ${dockerfile} for the first time" | tee -a "${dockerfile}.buildlog" >&2
     "${SCRIPT_FOLDER}/buildctl" build "${image}" "${tag}" "${dockerfile}" "${context}" "${push}" "${latest}" "${@}" | tee -a "${dockerfile}.buildlog" >&2
   else
     local check_for_update_logs

@@ -20,6 +20,61 @@ stop_daemon() {
   "${SCRIPT_FOLDER}/buildkitd" stop || :
 }
 
+build2() {
+  local images="${1}" # comma separated list of image references
+  local dockerfile="${2:-Dockerfile}"
+  local context="${3:-"$(dirname "${dockerfile}")"}"
+  local push="${4:-"false"}"
+
+  # e.g., allows for additionnal --opt build-args
+  if [[ $# -gt 4 ]]; then
+    shift 4
+  else
+    shift $#
+  fi
+
+  local first_image_name
+  first_image_name="$(echo "${images}" | cut -d, -f1)"
+  
+  "${SCRIPT_FOLDER}/bin/buildctl" build \
+    --progress=plain \
+    --frontend=dockerfile.v0 \
+    --local context="${context}" \
+    --local dockerfile="$(dirname "${dockerfile}")" \
+    --opt filename="$(basename "${dockerfile}")" \
+    --output "type=image,\"name=${images}\",push=${push}" \
+    --export-cache "type=registry,mode=max,ref=${first_image_name}-buildcache" \
+    "${@}"
+}
+
+build_with_cache2() {
+  local images="${1}" # comma separated list of image references
+  local dockerfile="${2:-Dockerfile}"
+  local context="${3:-"$(dirname "${dockerfile}")"}"
+  local push="${4:-"false"}"
+
+  # e.g., allows for additionnal --opt build-args
+  if [[ $# -gt 4 ]]; then
+    shift 4
+  else
+    shift $#
+  fi
+
+  local first_image_name
+  first_image_name="$(echo "${images}" | cut -d, -f1)"
+
+  "${SCRIPT_FOLDER}/bin/buildctl" build \
+    --progress=plain \
+    --frontend=dockerfile.v0 \
+    --local context="${context}" \
+    --local dockerfile="$(dirname "${dockerfile}")" \
+    --opt filename="$(basename "${dockerfile}")" \
+    --output "type=image,\"name=${images}\",push=${push}" \
+    --export-cache "type=registry,mode=max,ref=${first_image_name}-buildcache" \
+    --import-cache "type=registry,ref=${first_image_name}-buildcache" \
+    "${@}"
+}
+
 build() {
   local image="${1}"
   local tag="${2}"

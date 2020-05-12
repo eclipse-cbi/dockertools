@@ -91,17 +91,20 @@ build2() {
     if "${SCRIPT_FOLDER}/check-for-update.sh" "${first_image_name}" > "${check_for_update_logs}"; then
       # ${first_image_name} packages are up to date, build with cache
       echo "INFO: Building ${dockerfile} with cache from ${first_image_name} (all packages are up to date)"
+      echo "INFO: Will tag ${first_image_name} with aliases $(echo "${images}" | cut -d, -f2-)"
 
-      "${SCRIPT_FOLDER}/buildctl" build_with_cache2 "${image}" "${tag}" "${dockerfile}" "${context}" "${push}" "${latest}" "${@}"
+      "${SCRIPT_FOLDER}/buildctl" build_with_cache2 "${images}" "${dockerfile}" "${context}" "${push}" "${@}"
     elif "${SCRIPT_FOLDER}/check-for-update.sh" "${parent_image}" > "${check_for_update_logs_parent}"; then
       # ${first_image_name} packages are outdated, but ${parent_image} packages are up to date, build with no cache
       echo "INFO: Building ${dockerfile} with no cache (some packages are outdated)"
+      echo "INFO: Will tag ${first_image_name} with aliases $(echo "${images}" | cut -d, -f2-)"
 
-      "${SCRIPT_FOLDER}/buildctl" build2 "${image}" "${tag}" "${dockerfile}" "${context}" "${push}" "${latest}" "${@}"
+      "${SCRIPT_FOLDER}/buildctl" build2 "${images}" "${dockerfile}" "${context}" "${push}" "${@}"
     elif [[ $(diff "${check_for_update_logs}" "${check_for_update_logs_parent}" | grep -c '^<') -gt 0 ]]; then
       # Both ${first_image_name} and ${parent_image} packages are outdated, 
       # some packages from ${first_image_name} are not outdated/installed in ${parent_image}, build with no cache
       echo "INFO: Building ${dockerfile} with no cache (some packages are outdated)"
+      echo "INFO: Will tag ${first_image_name} with aliases $(echo "${images}" | cut -d, -f2-)"
       echo "DEBUG: Package difference between ${first_image_name} <-> ${parent_image}"
       diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
 
@@ -110,6 +113,7 @@ build2() {
       # Both ${first_image_name} and ${parent_image} packages are outdated, 
       # but all outdated packages from ${first_image_name} come from ${parent_image}, build with cache
       echo "INFO: Building ${dockerfile} with cache from ${first_image_name} (some packages are outdated, but they are controlled by parent image exclusively)"
+      echo "INFO: Will tag ${first_image_name} with aliases $(echo "${images}" | cut -d, -f2-)"
       echo "DEBUG: Package difference between ${first_image_name} <-> ${parent_image}"
       diff "${check_for_update_logs}" "${check_for_update_logs_parent}" || :
 

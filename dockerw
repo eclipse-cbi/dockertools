@@ -84,7 +84,7 @@ build2() {
     echo "INFO: Cannot find or pull ${first_image_name}"
     echo "INFO: Building ${dockerfile} for the first time"
     echo "INFO: Will tag image as ${images}"
-    "${SCRIPT_FOLDER}/buildctl" build "${images}" "${dockerfile}" "${context}" "${push}" "${@}"
+    "${SCRIPT_FOLDER}/buildctl" build2 "${images}" "${dockerfile}" "${context}" "${push}" "${@}"
   else
     local check_for_update_logs check_for_update_logs_parent
     check_for_update_logs=$(mktemp)

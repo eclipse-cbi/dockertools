@@ -57,7 +57,7 @@ if [[ ! -x "${SCRIPT_FOLDER}/bin/buildctl" ]]; then
   else
     curl -sSL "https://api.github.com/repos/moby/buildkit/releases/tags/${BUILDKIT_VERSION}" > "${releaseinfo}"
   fi
-  buildkit_url="$(jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url' "${releaseinfo}")"
+  buildkit_url="$(jq -r '.assets[] | select(.name | test("'${platform}'")) | .browser_download_url' "${releaseinfo}" | grep '.tar.gz')"
   >&2 echo "INFO: Downloading ${buildkit_url}"
   curl -sSL "${buildkit_url}" | tar -C "${SCRIPT_FOLDER}" -zx
   rm "${releaseinfo}"
